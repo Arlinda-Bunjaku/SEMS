@@ -1,11 +1,23 @@
 
 import { useState } from 'react'
 import AuthForm from './AuthForm'
+import { useState } from 'react'
+import ProfessorDashboard from './ProfessorDashboard'
 
 import './App.css'
 
 function App() {
   const [showAuth, setShowAuth] = useState(false)
+  const [professorProfile, setProfessorProfile] = useState(null)
+
+if (professorProfile) {
+  return (
+    <ProfessorDashboard
+      profile={professorProfile}
+      onSignOut={() => setProfessorProfile(null)}
+    />
+  )
+}
   return (
     <main className="home-page">
       <header className="site-header">
@@ -126,7 +138,12 @@ function App() {
         <span>SEMS</span>
         <span>Sistem i thjeshtë për komunitetin akademik</span>
       </footer>
-      {showAuth && <AuthForm onClose={() => setShowAuth(false)} />}
+      {showAuth && (
+  <AuthForm
+    onClose={() => setShowAuth(false)}
+    onLogin={(profile) => setProfessorProfile(profile)}
+  />
+)}
     </main>
   )
 }

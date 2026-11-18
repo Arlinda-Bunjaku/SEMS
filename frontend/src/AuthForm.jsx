@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import './AuthForm.css'
 
-function AuthForm({ onClose }) {
+function AuthForm({ onClose, onLogin }) {
   const [mode, setMode] = useState('login')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -67,6 +67,10 @@ function AuthForm({ onClose }) {
     }
 
     setMessage(`Mirë se erdhe, ${profile.full_name}! Roli yt: ${profile.role}.`)
+
+    if (profile.role === 'professor') {
+  onLogin(profile)
+}
   }
 
   return (
