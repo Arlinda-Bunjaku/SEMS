@@ -1,20 +1,74 @@
-
-import { useState } from 'react'
 import AuthForm from './AuthForm'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from './lib/supabaseClient'
 import ProfessorDashboard from './ProfessorDashboard'
+import StudentDashboard from './StudentDashboard'
 
 import './App.css'
 
 function App() {
   const [showAuth, setShowAuth] = useState(false)
   const [professorProfile, setProfessorProfile] = useState(null)
+  const [activeProfile, setActiveProfile] = useState(null)
+const [checkingSession, setCheckingSession] = useState(true)
+
+useEffect(() => {
+  let isMounted = true
+
+  async function restoreSession() {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (session) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .eq('id', session.user.id)
+        .single()
+
+      if (isMounted && profile) {
+        setActiveProfile(profile)
+      }
+    }
+
+    if (isMounted) {
+      setCheckingSession(false)
+    }
+  }
+
+  restoreSession()
+
+  return () => {
+    isMounted = false
+  }
+}, [])
 
 if (professorProfile) {
   return (
     <ProfessorDashboard
       profile={professorProfile}
       onSignOut={() => setProfessorProfile(null)}
+    />
+  )
+}
+
+if (checkingSession) {
+  return <p>Po kontrolloj sesionin...</p>
+}
+
+if (activeProfile?.role === 'professor') {
+  return (
+    <ProfessorDashboard
+      profile={activeProfile}
+      onSignOut={() => setActiveProfile(null)}
+    />
+  )
+}
+
+if (activeProfile?.role === 'student') {
+  return (
+    <StudentDashboard
+      profile={activeProfile}
+      onSignOut={() => setActiveProfile(null)}
     />
   )
 }
@@ -29,7 +83,11 @@ if (professorProfile) {
         <nav className="main-nav" aria-label="Navigimi kryesor">
           <a href="#about">Rreth sistemit</a>
           <a href="#features">Funksionet</a>
-          <button className="button button-outline" type="button" onClick={() => setShowAuth(true)}>
+          <button
+  className="button button-primary"
+  type="button"
+  onClick={() => setShowAuth(true)}
+>
             Hyr 
         
                   </button>
@@ -50,7 +108,11 @@ if (professorProfile) {
           </p>
 
           <div className="hero-actions">
-            <button className="button button-primary" type="button" onClick={() => setShowAuth(true)}>
+            <button
+  className="button button-primary"
+  type="button"
+  onClick={() => setShowAuth(true)}
+>
               Hyr në sistem  
               
             </button>
@@ -141,7 +203,7 @@ if (professorProfile) {
       {showAuth && (
   <AuthForm
     onClose={() => setShowAuth(false)}
-    onLogin={(profile) => setProfessorProfile(profile)}
+    onLogin={(profile) => setActiveProfile(profile)}
   />
 )}
     </main>

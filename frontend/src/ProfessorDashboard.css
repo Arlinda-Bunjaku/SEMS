@@ -155,12 +155,14 @@
 
 .dashboard-form input,
 .dashboard-form textarea {
-  box-sizing: border-box;
+   box-sizing: border-box;
   width: 100%;
   padding: 11px 12px;
-  border: 1px solid #d9e1ec;
+  border: 1px solid #52627a;
   border-radius: 8px;
-  color: #243a56;
+  background-color: #1f2937;
+  color: #ffffff;
+  caret-color: #ffffff;
   font: inherit;
   font-weight: 400;
 }

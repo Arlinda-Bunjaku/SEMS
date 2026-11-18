@@ -17,6 +17,8 @@ function AuthForm({ onClose, onLogin }) {
     setErrorMessage('')
     setLoading(true)
 
+    
+ 
     if (mode === 'signup') {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -67,10 +69,8 @@ function AuthForm({ onClose, onLogin }) {
     }
 
     setMessage(`Mirë se erdhe, ${profile.full_name}! Roli yt: ${profile.role}.`)
+onLogin(profile)
 
-    if (profile.role === 'professor') {
-  onLogin(profile)
-}
   }
 
   return (
