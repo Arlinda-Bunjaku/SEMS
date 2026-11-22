@@ -1,6 +1,9 @@
+import { keccak256, toUtf8Bytes } from 'ethers'
+
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import './ProfessorDashboard.css'
+import { connectMaterialRegistry } from './lib/materialRegistry'
 
 function ProfessorDashboard({ profile, onSignOut }) {
   const [section, setSection] = useState('materials')
@@ -10,6 +13,8 @@ function ProfessorDashboard({ profile, onSignOut }) {
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [walletAddress, setWalletAddress] = useState('')
+  const [registryContract, setRegistryContract] = useState(null)
 
   useEffect(() => {
     loadDashboard()
@@ -66,6 +71,10 @@ function ProfessorDashboard({ profile, onSignOut }) {
       setErrorMessage('Nuk u gjet përdoruesi i kyçur.')
       return
     }
+    if (!registryContract) {
+  setErrorMessage('Lidh MetaMask para se të publikosh materialin.')
+  return
+}
 
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -96,18 +105,50 @@ function ProfessorDashboard({ profile, onSignOut }) {
       return
     }
 
-    const { error: insertError } = await supabase.from('materials').insert({
-      professor_id: user.id,
-      title: formData.get('title'),
-      description: formData.get('description') || '',
-      file_path: filePath,
-    })
+   const title = String(formData.get('title')).trim()
+const description = String(formData.get('description') || '').trim()
 
-    if (insertError) {
-      await supabase.storage.from('materials').remove([filePath])
-      setErrorMessage(insertError.message)
-      return
-    }
+const { data: savedMaterial, error: insertError } = await supabase
+  .from('materials')
+  .insert({
+    professor_id: user.id,
+    title,
+    description,
+    file_path: filePath,
+  })
+  .select('id')
+  .single()
+
+if (insertError) {
+  await supabase.storage.from('materials').remove([filePath])
+  setErrorMessage(insertError.message)
+  return
+}
+
+const materialId = keccak256(toUtf8Bytes(String(savedMaterial.id)))
+const contentHash = keccak256(new Uint8Array(await file.arrayBuffer()))
+
+try {
+  const transaction = await registryContract.registerMaterial(
+    materialId,
+    title,
+    contentHash
+  )
+
+  await transaction.wait()
+  setMessage(
+    `Materiali u ngarkua dhe u regjistrua në blockchain. Transaksioni: ${transaction.hash.slice(0, 10)}...`
+  )
+} catch (blockchainError) {
+  setErrorMessage(
+    `Materiali u ruajt në Supabase, por regjistrimi në blockchain dështoi: ${
+      blockchainError.shortMessage || blockchainError.message
+    }`
+  )
+}
+
+form.reset()
+await loadDashboard()
 
     form.reset()
     setMessage('Materiali u ngarkua me sukses.')
@@ -193,7 +234,19 @@ function ProfessorDashboard({ profile, onSignOut }) {
     setMessage('Njoftimi i provimit u publikua.')
     await loadDashboard()
   }
+  async function handleConnectWallet() {
+  setMessage('')
+  setErrorMessage('')
 
+  try {
+    const { contract, address } = await connectMaterialRegistry()
+setRegistryContract(contract)
+setWalletAddress(address)
+    setMessage('MetaMask u lidh me Hardhat Local.')
+  } catch (error) {
+    setErrorMessage(error.message || 'Lidhja me MetaMask dështoi.')
+  }
+}
   async function handleSignOut() {
     await supabase.auth.signOut()
     onSignOut()
@@ -240,6 +293,15 @@ function ProfessorDashboard({ profile, onSignOut }) {
             <h1>{section === 'materials' ? 'Materialet mësimore' : 'Njoftimet e provimeve'}</h1>
           </div>
           <span className="role-badge">Profesor</span>
+          <button
+  className="dashboard-primary-button"
+  onClick={handleConnectWallet}
+  type="button"
+>
+  {walletAddress
+    ? `Wallet: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+    : 'Lidh MetaMask'}
+</button>
         </header>
 
         {message && <p className="dashboard-message">{message}</p>}
