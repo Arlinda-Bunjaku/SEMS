@@ -10,6 +10,7 @@ function ProfessorDashboard({ profile, onSignOut }) {
   const [user, setUser] = useState(null)
   const [materials, setMaterials] = useState([])
   const [exams, setExams] = useState([])
+  const [editingExam, setEditingExam] = useState(null)
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [loading, setLoading] = useState(true)
@@ -127,6 +128,8 @@ if (insertError) {
 
 const materialId = keccak256(toUtf8Bytes(String(savedMaterial.id)))
 const contentHash = keccak256(new Uint8Array(await file.arrayBuffer()))
+let transactionHash = ''
+let blockchainErrorText = ''
 
 try {
   const transaction = await registryContract.registerMaterial(
@@ -136,23 +139,23 @@ try {
   )
 
   await transaction.wait()
-  setMessage(
-    `Materiali u ngarkua dhe u regjistrua në blockchain. Transaksioni: ${transaction.hash.slice(0, 10)}...`
-  )
+  transactionHash = transaction.hash
 } catch (blockchainError) {
-  setErrorMessage(
-    `Materiali u ruajt në Supabase, por regjistrimi në blockchain dështoi: ${
-      blockchainError.shortMessage || blockchainError.message
-    }`
-  )
+  blockchainErrorText = blockchainError.shortMessage || blockchainError.message
 }
 
 form.reset()
 await loadDashboard()
 
-    form.reset()
-    setMessage('Materiali u ngarkua me sukses.')
-    await loadDashboard()
+if (blockchainErrorText) {
+  setErrorMessage(
+    `Materiali u ruajt në Supabase, por regjistrimi në blockchain dështoi: ${blockchainErrorText}`
+  )
+} else {
+  setMessage(
+    `Materiali u ngarkua dhe u regjistrua në blockchain. Transaksioni: ${transactionHash.slice(0, 10)}...`
+  )
+}
   }
 
   async function downloadMaterial(material) {
@@ -215,24 +218,96 @@ await loadDashboard()
 
     const form = event.currentTarget
     const formData = new FormData(form)
-
-    const { error } = await supabase.from('exams').insert({
-      professor_id: user.id,
-      subject_name: formData.get('subject_name'),
+    const examValues = {
+      subject_name: String(formData.get('subject_name')).trim(),
       exam_date: formData.get('exam_date'),
       exam_time: formData.get('exam_time'),
-      exam_location: formData.get('exam_location'),
-      description: formData.get('description') || '',
-    })
+      exam_location: String(formData.get('exam_location')).trim(),
+      description: String(formData.get('description') || '').trim(),
+    }
+    const wasEditing = Boolean(editingExam)
+
+    let result
+    if (wasEditing) {
+      result = await supabase
+        .from('exams')
+        .update(examValues)
+        .eq('id', editingExam.id)
+        .eq('professor_id', user.id)
+        .select('id')
+        .maybeSingle()
+    } else {
+      result = await supabase
+        .from('exams')
+        .insert({ professor_id: user.id, ...examValues })
+    }
+
+    if (result.error) {
+      setErrorMessage(result.error.message)
+      return
+    }
+
+    if (wasEditing && !result.data) {
+      setErrorMessage('Provimi nuk u ndryshua. Kontrollo lejet RLS në Supabase.')
+      return
+    }
+
+    form.reset()
+    setEditingExam(null)
+
+    if (wasEditing) {
+      setExams((currentExams) =>
+        currentExams.map((exam) =>
+          exam.id === editingExam.id ? { ...exam, ...examValues } : exam
+        )
+      )
+      setMessage('Provimi u ndryshua me sukses.')
+    } else {
+      setMessage('Njoftimi i provimit u publikua.')
+      await loadDashboard()
+    }
+  }
+
+  function handleEditExam(exam) {
+    setMessage('')
+    setErrorMessage('')
+    setEditingExam(exam)
+    document.querySelector('.exam-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  async function handleDeleteExam(exam) {
+    setMessage('')
+    setErrorMessage('')
+
+    if (!user) {
+      setErrorMessage('Nuk u gjet përdoruesi i kyçur.')
+      return
+    }
+
+    const confirmed = window.confirm(`A dëshiron ta fshish provimin "${exam.subject_name}"?`)
+    if (!confirmed) return
+
+    const { data, error } = await supabase
+      .from('exams')
+      .delete()
+      .eq('id', exam.id)
+      .eq('professor_id', user.id)
+      .select('id')
+      .maybeSingle()
 
     if (error) {
       setErrorMessage(error.message)
       return
     }
 
-    form.reset()
-    setMessage('Njoftimi i provimit u publikua.')
-    await loadDashboard()
+    if (!data) {
+      setErrorMessage('Provimi nuk u fshi. Kontrollo lejet RLS në Supabase.')
+      return
+    }
+
+    setExams((currentExams) => currentExams.filter((item) => item.id !== exam.id))
+    if (editingExam?.id === exam.id) setEditingExam(null)
+    setMessage('Provimi u fshi me sukses.')
   }
   async function handleConnectWallet() {
   setMessage('')
@@ -392,35 +467,76 @@ setWalletAddress(address)
             <section className="dashboard-panel">
               <h2>Shto njoftim provimi</h2>
 
-              <form className="dashboard-form exam-form" onSubmit={handleExamSubmit}>
+              <form
+                key={editingExam?.id ?? 'new'}
+                className="dashboard-form exam-form"
+                onSubmit={handleExamSubmit}
+              >
                 <label>
                   Lënda
-                  <input name="subject_name" required />
+                  <input
+                    name="subject_name"
+                    defaultValue={editingExam?.subject_name ?? ''}
+                    required
+                  />
                 </label>
 
                 <label>
                   Data
-                  <input name="exam_date" type="date" required />
+                  <input
+                    name="exam_date"
+                    type="date"
+                    defaultValue={editingExam?.exam_date ?? ''}
+                    required
+                  />
                 </label>
 
                 <label>
                   Ora
-                  <input name="exam_time" type="time" required />
+                  <input
+                    name="exam_time"
+                    type="time"
+                    defaultValue={editingExam?.exam_time?.slice(0, 5) ?? ''}
+                    required
+                  />
                 </label>
 
                 <label>
                   Lokacioni
-                  <input name="exam_location" required />
+                  <input
+                    name="exam_location"
+                    defaultValue={editingExam?.exam_location ?? ''}
+                    required
+                  />
                 </label>
 
                 <label className="full-width">
                   Përshkrimi
-                  <textarea name="description" rows="3" />
+                  <textarea
+                    name="description"
+                    rows="3"
+                    defaultValue={editingExam?.description ?? ''}
+                  />
                 </label>
 
-                <button className="dashboard-primary-button" type="submit">
-                  Publiko njoftimin
-                </button>
+                <div className="exam-form-actions">
+                  <button className="dashboard-primary-button" type="submit">
+                    {editingExam ? 'Ruaj ndryshimet' : 'Publiko njoftimin'}
+                  </button>
+                  {editingExam && (
+                    <button
+                      className="dashboard-secondary-button"
+                      onClick={() => {
+                        setEditingExam(null)
+                        setMessage('')
+                        setErrorMessage('')
+                      }}
+                      type="button"
+                    >
+                      Anulo
+                    </button>
+                  )}
+                </div>
               </form>
             </section>
 
@@ -438,6 +554,7 @@ setWalletAddress(address)
                         <th>Data dhe ora</th>
                         <th>Lokacioni</th>
                         <th>Përshkrimi</th>
+                        <th>Veprimet</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -447,6 +564,22 @@ setWalletAddress(address)
                           <td>{exam.exam_date} · {exam.exam_time}</td>
                           <td>{exam.exam_location}</td>
                           <td>{exam.description}</td>
+                          <td className="table-actions">
+                            <button
+                              className="table-button"
+                              onClick={() => handleEditExam(exam)}
+                              type="button"
+                            >
+                              Ndrysho
+                            </button>
+                            <button
+                              className="table-button danger"
+                              onClick={() => handleDeleteExam(exam)}
+                              type="button"
+                            >
+                              Fshi
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

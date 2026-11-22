@@ -201,3 +201,22 @@
     padding: 18px;
   }
 }
+.student-verify-status {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.student-verify-status.success {
+  color: #16804a;
+}
+
+.student-verify-status.error {
+  color: #b42318;
+}
+
+.student-download:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}

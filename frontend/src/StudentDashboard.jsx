@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import './StudentDashboard.css'
+import { keccak256, toUtf8Bytes } from 'ethers'
+import { connectMaterialRegistry } from './lib/materialRegistry'
 
 function StudentDashboard({ profile, onSignOut }) {
   const [section, setSection] = useState('materials')
@@ -8,6 +10,8 @@ function StudentDashboard({ profile, onSignOut }) {
   const [exams, setExams] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [verifyingMaterialId, setVerifyingMaterialId] = useState(null)
+  const [verificationStatus, setVerificationStatus] = useState({})
 
   useEffect(() => {
     loadData()
@@ -64,7 +68,71 @@ function StudentDashboard({ profile, onSignOut }) {
     link.click()
     URL.revokeObjectURL(url)
   }
+async function verifyMaterial(material) {
+  setVerifyingMaterialId(material.id)
+  setVerificationStatus((previous) => ({
+    ...previous,
+    [material.id]: null,
+  }))
 
+  try {
+    const { contract } = await connectMaterialRegistry()
+
+    const { data: file, error: fileError } = await supabase.storage
+      .from('materials')
+      .download(material.file_path)
+
+    if (fileError) {
+      throw new Error(fileError.message)
+    }
+
+    const materialId = keccak256(toUtf8Bytes(String(material.id)))
+    const fileHash = keccak256(
+      new Uint8Array(await file.arrayBuffer())
+    )
+
+    const record = await contract.getMaterial(materialId)
+
+    if (!record[4]) {
+      setVerificationStatus((previous) => ({
+        ...previous,
+        [material.id]: {
+          ok: false,
+          message: 'Materiali nuk u gjet në blockchain.',
+        },
+      }))
+    } else if (
+      String(record[1]) !== material.title ||
+      String(record[2]).toLowerCase() !== fileHash.toLowerCase()
+    ) {
+      setVerificationStatus((previous) => ({
+        ...previous,
+        [material.id]: {
+          ok: false,
+          message: 'Materiali nuk përputhet me regjistrimin në blockchain.',
+        },
+      }))
+    } else {
+      setVerificationStatus((previous) => ({
+        ...previous,
+        [material.id]: {
+          ok: true,
+          message: 'Materiali u verifikua me sukses në blockchain.',
+        },
+      }))
+    }
+  } catch (error) {
+    setVerificationStatus((previous) => ({
+      ...previous,
+      [material.id]: {
+        ok: false,
+        message: error.message || 'Verifikimi dështoi.',
+      },
+    }))
+  } finally {
+    setVerifyingMaterialId(null)
+  }
+}
   async function handleSignOut() {
     await supabase.auth.signOut()
     onSignOut()
@@ -129,7 +197,7 @@ function StudentDashboard({ profile, onSignOut }) {
                       <th>Materiali</th>
                       <th>Profesori</th>
                       <th>Data e publikimit</th>
-                      <th>Skedari</th>
+                      <th>Veprimet</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,6 +218,27 @@ function StudentDashboard({ profile, onSignOut }) {
                             type="button"
                           >
                             Shkarko PDF
+
+                            <button
+  className="student-download"
+  onClick={() => verifyMaterial(material)}
+  disabled={verifyingMaterialId === material.id}
+  type="button"
+>
+  {verifyingMaterialId === material.id
+    ? 'Duke verifikuar...'
+    : 'Verifiko në blockchain'}
+</button>
+
+{verificationStatus[material.id] && (
+  <span
+    className={`student-verify-status ${
+      verificationStatus[material.id].ok ? 'success' : 'error'
+    }`}
+  >
+    {verificationStatus[material.id].message}
+  </span>
+)}
                           </button>
                         </td>
                       </tr>
