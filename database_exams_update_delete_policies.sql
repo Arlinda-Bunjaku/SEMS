@@ -1,5 +1,3 @@
--- Ekzekutoje një herë në Supabase SQL Editor nëse ndryshimi ose fshirja bllokohet nga RLS.
--- Politikat lejojnë profesorin të menaxhojë vetëm provimet e veta.
 
 DROP POLICY IF EXISTS "Professors update their own exams" ON public.exams;
 CREATE POLICY "Professors update their own exams"
