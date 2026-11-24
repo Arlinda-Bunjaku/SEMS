@@ -317,7 +317,7 @@ if (blockchainErrorText) {
     const { contract, address } = await connectMaterialRegistry()
 setRegistryContract(contract)
 setWalletAddress(address)
-    setMessage('MetaMask u lidh me Hardhat Local.')
+    setMessage('MetaMask u lidh me Polygon Amoy Testnet.')
   } catch (error) {
     setErrorMessage(error.message || 'Lidhja me MetaMask dështoi.')
   }

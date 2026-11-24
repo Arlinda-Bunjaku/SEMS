@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-b1aad3ca8834dbcf7585450be2957abe41b364f5",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.22.0"
+  },
+  "userSourceNameMap": {
+    "contracts/SEMSMaterialRegistry.sol": "project/contracts/SEMSMaterialRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/SEMSMaterialRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.28;\r\n\r\ncontract SEMSMaterialRegistry {\r\n    struct Material {\r\n        address professor;\r\n        string title;\r\n        bytes32 contentHash;\r\n        uint256 createdAt;\r\n        bool exists;\r\n    }\r\n\r\n    mapping(bytes32 => Material) private materials;\r\n\r\n    event MaterialRegistered(\r\n        bytes32 indexed materialId,\r\n        address indexed professor,\r\n        string title,\r\n        bytes32 contentHash,\r\n        uint256 createdAt\r\n    );\r\n\r\n    function registerMaterial(\r\n        bytes32 materialId,\r\n        string calldata title,\r\n        bytes32 contentHash\r\n    ) external {\r\n        require(materialId != bytes32(0), \"ID is required\");\r\n        require(bytes(title).length > 0, \"Title is required\");\r\n        require(contentHash != bytes32(0), \"Hash is required\");\r\n        require(!materials[materialId].exists, \"Material already registered\");\r\n\r\n        materials[materialId] = Material({\r\n            professor: msg.sender,\r\n            title: title,\r\n            contentHash: contentHash,\r\n            createdAt: block.timestamp,\r\n            exists: true\r\n        });\r\n\r\n        emit MaterialRegistered(\r\n            materialId,\r\n            msg.sender,\r\n            title,\r\n            contentHash,\r\n            block.timestamp\r\n        );\r\n    }\r\n\r\n    function getMaterial(bytes32 materialId)\r\n        external\r\n        view\r\n        returns (\r\n            address professor,\r\n            string memory title,\r\n            bytes32 contentHash,\r\n            uint256 createdAt,\r\n            bool exists\r\n        )\r\n    {\r\n        Material memory material = materials[materialId];\r\n\r\n        return (\r\n            material.professor,\r\n            material.title,\r\n            material.contentHash,\r\n            material.createdAt,\r\n            material.exists\r\n        );\r\n    }\r\n}"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { BrowserProvider, Contract } from 'ethers'
 
-const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-const LOCAL_CHAIN_ID = '0x7a69'
+const CONTRACT_ADDRESS = '0xb33d53c2bd2c92dabc255f273d651fe498ff1dc8'
+const POLYGON_AMOY_CHAIN_ID = '0x13882'
 
 const CONTRACT_ABI = [
   'function registerMaterial(bytes32 materialId, string title, bytes32 contentHash)',
@@ -14,36 +14,36 @@ export async function connectMaterialRegistry() {
     throw new Error('MetaMask nuk u gjet në shfletues.')
   }
 
+  await window.ethereum.request({ method: 'eth_requestAccounts' })
+
   try {
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: LOCAL_CHAIN_ID }],
+      params: [{ chainId: POLYGON_AMOY_CHAIN_ID }],
     })
   } catch (error) {
-    if (error.code !== 4902) {
-      throw error
+    if (error.code === 4902) {
+      throw new Error(
+        'Polygon Amoy nuk është shtuar në MetaMask. Shtoje rrjetin dhe provo përsëri.'
+      )
     }
-
-    await window.ethereum.request({
-      method: 'wallet_addEthereumChain',
-      params: [{
-        chainId: LOCAL_CHAIN_ID,
-        chainName: 'Hardhat Local',
-        rpcUrls: ['http://127.0.0.1:8545'],
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18,
-        },
-      }],
-    })
+    throw error
   }
 
-  await window.ethereum.request({
-    method: 'eth_requestAccounts',
-  })
-
   const provider = new BrowserProvider(window.ethereum)
+  const network = await provider.getNetwork()
+
+  if (network.chainId !== 80002n) {
+    throw new Error('Zgjidh Polygon Amoy në MetaMask.')
+  }
+
+  const code = await provider.getCode(CONTRACT_ADDRESS)
+  if (code === '0x') {
+    throw new Error(
+      'Nuk u gjet kontratë në këtë adresë në Polygon Amoy. Kontrollo Contract Address në Explorer.'
+    )
+  }
+
   const signer = await provider.getSigner()
   const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
 
