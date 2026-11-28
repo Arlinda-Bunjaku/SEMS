@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
 import './ProfessorDashboard.css'
 import { connectMaterialRegistry } from './lib/materialRegistry'
+import { registerMaterialWithCompellio } from './lib/compellio'
 
 function ProfessorDashboard({ profile, onSignOut }) {
   const [section, setSection] = useState('materials')
@@ -16,6 +17,7 @@ function ProfessorDashboard({ profile, onSignOut }) {
   const [loading, setLoading] = useState(true)
   const [walletAddress, setWalletAddress] = useState('')
   const [registryContract, setRegistryContract] = useState(null)
+  const [compellioLoadingId, setCompellioLoadingId] = useState(null)
 
   useEffect(() => {
     loadDashboard()
@@ -159,25 +161,47 @@ if (blockchainErrorText) {
   }
 
   async function downloadMaterial(material) {
-    setMessage('')
-    setErrorMessage('')
+  setMessage('')
+  setErrorMessage('')
 
-    const { data, error } = await supabase.storage
-      .from('materials')
-      .download(material.file_path)
+  const { data, error } = await supabase.storage
+    .from('materials')
+    .download(material.file_path)
 
-    if (error) {
-      setErrorMessage(error.message)
-      return
-    }
-
-    const fileUrl = URL.createObjectURL(data)
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = material.file_path.split('/').pop()
-    link.click()
-    URL.revokeObjectURL(fileUrl)
+  if (error) {
+    setErrorMessage(error.message)
+    return
   }
+
+  const fileUrl = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = fileUrl
+  link.download = material.file_path.split('/').pop()
+  link.click()
+  URL.revokeObjectURL(fileUrl)
+}
+
+async function registerWithCompellio(material) {
+  setMessage('')
+  setErrorMessage('')
+  setCompellioLoadingId(material.id)
+
+  try {
+    const result = await registerMaterialWithCompellio(material)
+
+    setMessage(
+      `Materiali u regjistrua në Compellio. Hash SHA-256: ${result.sha256}`,
+    )
+
+    await loadDashboard()
+  } catch (error) {
+    setErrorMessage(
+      error.message || 'Regjistrimi me Compellio dështoi.',
+    )
+  } finally {
+    setCompellioLoadingId(null)
+  }
+}
 
   async function deleteMaterial(material) {
     setMessage('')
@@ -411,54 +435,92 @@ setWalletAddress(address)
               </form>
             </section>
 
-            <section className="dashboard-panel">
-              <h2>Materialet e publikuara</h2>
+           <section className="dashboard-panel">
+  <h2>Materialet e publikuara</h2>
 
-              {materials.length === 0 ? (
-                <p className="dashboard-hint">Nuk ke publikuar ende materiale.</p>
-              ) : (
-                <div className="dashboard-table-wrap">
-                  <table className="dashboard-table">
-                    <thead>
-                      <tr>
-                        <th>Titulli</th>
-                        <th>Data</th>
-                        <th>Veprimet</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {materials.map((material) => (
-                        <tr key={material.id}>
-                          <td>
-                            <strong>{material.title}</strong>
-                            <span className="table-description">
-                              {material.description}
-                            </span>
-                          </td>
-                          <td>{new Date(material.created_at).toLocaleDateString('sq-AL')}</td>
-                          <td className="table-actions">
-                            <button
-                              className="table-button"
-                              onClick={() => downloadMaterial(material)}
-                              type="button"
-                            >
-                              Shkarko
-                            </button>
-                            <button
-                              className="table-button danger"
-                              onClick={() => deleteMaterial(material)}
-                              type="button"
-                            >
-                              Fshi
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+  {materials.length === 0 ? (
+    <p className="dashboard-hint">
+      Nuk ke publikuar ende materiale.
+    </p>
+  ) : (
+    <div className="dashboard-table-wrap">
+      <table className="dashboard-table">
+        <thead>
+          <tr>
+            <th>Titulli</th>
+            <th>Data</th>
+            <th>Compellio</th>
+            <th>Veprimet</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {materials.map((material) => (
+            <tr key={material.id}>
+              <td>
+                <strong>{material.title}</strong>
+                <span className="table-description">
+                  {material.description}
+                </span>
+              </td>
+
+              <td>
+                {new Date(material.created_at).toLocaleDateString('sq-AL')}
+              </td>
+
+              <td>
+                {material.compellio_status === 'registered'
+                  ? `Regjistruar (${
+                      material.registry_tar_id ||
+                      material.registry_receipt_id ||
+                      'ID e ruajtur'
+                    })`
+                  : 'Në pritje'}
+
+                {material.compellio_sha256 && (
+                  <span className="table-description">
+                    SHA-256: {material.compellio_sha256}
+                  </span>
+                )}
+
+                {material.compellio_status !== 'registered' && (
+                  <button
+                    className="table-button"
+                    type="button"
+                    disabled={compellioLoadingId === material.id}
+                    onClick={() => registerWithCompellio(material)}
+                  >
+                    {compellioLoadingId === material.id
+                      ? 'Duke regjistruar…'
+                      : 'Regjistro me Compellio'}
+                  </button>
+                )}
+              </td>
+
+              <td className="table-actions">
+                <button
+                  className="table-button"
+                  onClick={() => downloadMaterial(material)}
+                  type="button"
+                >
+                  Shkarko
+                </button>
+
+                <button
+                  className="table-button danger"
+                  onClick={() => deleteMaterial(material)}
+                  type="button"
+                >
+                  Fshi
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
           </>
         )}
 

@@ -1,0 +1,4 @@
+project_id = "sems"
+
+[functions.compellio-register]
+verify_jwt = true

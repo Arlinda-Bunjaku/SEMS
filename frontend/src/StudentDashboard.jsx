@@ -25,7 +25,7 @@ function StudentDashboard({ profile, onSignOut }) {
       supabase
         .from('materials')
         .select(
-          'id, title, description, file_path, created_at, professor:profiles!materials_professor_id_fkey(full_name)'
+          'id, title, description, file_path, created_at, compellio_status, registry_tar_id, registry_receipt_id, compellio_sha256, professor:profiles!materials_professor_id_fkey(full_name'
         )
         .order('created_at', { ascending: false }),
       supabase
@@ -198,6 +198,7 @@ async function verifyMaterial(material) {
                       <th>Profesori</th>
                       <th>Data e publikimit</th>
                       <th>Veprimet</th>
+                      <th>Compellio</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -211,6 +212,18 @@ async function verifyMaterial(material) {
                         <td>
                           {new Date(material.created_at).toLocaleDateString('sq-AL')}
                         </td>
+                        <td>
+  {material.compellio_status === 'registered'
+    ? `Regjistruar${
+        material.registry_tar_id || material.registry_receipt_id
+          ? ` · ${
+              material.registry_tar_id ||
+              material.registry_receipt_id
+            }`
+          : ''
+      }`
+    : 'Në pritje'}
+</td>
                         <td>
                           <button
                             className="student-download"
